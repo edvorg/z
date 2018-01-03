@@ -10,19 +10,42 @@ A simple Clojure wrapper around java.util.zip
 (ns ...
   (:require [rocks.clj.z.core :refer [compress]]))
 
-(compress "test.zip" :entries {"test.json" "test.json"})
+(compress "test.zip"
+          :entries {"test.json" "test.json"})
 
-(compress "test.zip" :entries {"test.json" true})
+(compress "test.zip"
+          :entries {"test.json" true})
 
-(compress "test.zip" :entries ["test.json"])
+(compress "test.zip"
+          :entries ["test.json"])
 
 ;; fully lazy mode, doesn't retain lazy seq
-(compress "/Users/edvorg/Downloads/z.zip"
+(compress "z.zip"
           :entries-fn (fn []
                         (->> (io/file "/Users/edvorg/Projects/z")
                              file-seq
                              (filter #(.isFile %))
                              (map #(.getPath %)))))
+
+;; extract test.zip into directory test
+(extract "test.zip"
+         "test")
+
+;; perform a reduce operation on all entries
+(->> "test.zip"
+     (reduce-zip
+       (fn [zip-input val entry]
+         (conj val (.getName entry)))
+       []))
+
+;; find an entry and call a function on corresponding entry
+(when (-> "investigation.zip"
+          (seek-entry
+            "/insert.edn"
+            (fn [zip-input entry]
+              (io/copy zip-input (io/file "insert.edn"))
+              true)))
+  (println "entry's found and unpacked"))
 ```
 
 ## License

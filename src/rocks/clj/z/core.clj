@@ -12,7 +12,7 @@
 
 (defn compress
   "Writes a zip archive with entries to output.
-  Output can be anything that is accepted by clojure.java.io/output-stream.
+  Output can be anything that is accepted by clojure.java.io/output-stream .
   Entries can be a collection of filenames or pairs [path -> input].
   Path is a path to entry inside archive.
   Input can be anything that is accepted by clojure.java.io/input-stream or true (input value defaults to path).
@@ -36,7 +36,7 @@
               (io/copy output)))))))
 
 (defn- zip-entries
-  "Creates lazy seq of zip entries."
+  "Creates lazy seq of zip archive entries."
   [^ZipInputStream zip-input]
   (lazy-seq
     (if-let [entry (.getNextEntry zip-input)]
@@ -44,7 +44,7 @@
 
 (defn do-zip
   "Reads zip archive from input and applies f to [ZipInputStream ZipEntry] for each entry.
-  Input can be anything that's accepted by clojure.java.io/input-stream."
+  Input can be anything that's accepted by clojure.java.io/input-stream ."
   [input f]
   (with-open [zip-input (ZipInputStream. (io/input-stream input))]
     (doseq [entry (zip-entries zip-input)]
@@ -53,8 +53,8 @@
 
 (defn extract
   "Extracts input archive to output directory.
-  Input can be anything that's accepted by clojure.java.io/input-stream.
-  Output can be anything that is accepted by clojure.java.io/file."
+  Input can be anything that's accepted by clojure.java.io/input-stream .
+  Output can be anything that is accepted by clojure.java.io/file ."
   [input output]
   (do-zip
     input
@@ -69,7 +69,7 @@
 
 (defn reduce-zip
   "Reads zip archive from input and reduces all entries applying f to [ZipInputStream val ZipEntry].
-  Result of f becomes new val. Input can be anything that's accepted by clojure.java.io/input-stream."
+  Result of f becomes new val. Input can be anything that's accepted by clojure.java.io/input-stream ."
   [f val input]
   (with-open [zip-input (ZipInputStream. (io/input-stream input))]
     (->> (zip-entries zip-input)
@@ -79,15 +79,27 @@
                      result))
                  val))))
 
+(defn seek-entry
+  "Reads zip archive from input and searches for entry with name entry-name.
+  Applies f to [ZipInputStream ZipEntry] if entry is found.
+  Input can be anything that's accepted by clojure.java.io/input-stream ."
+  [input entry-name f]
+  (->> input
+       (reduce-zip
+         (fn [zip-input _ entry]
+           (when (= entry-name (.getName entry))
+             (reduced (f zip-input entry))))
+         nil)))
+
 (comment
   (compress "test.zip"
-            :entries {"/var/raven/incoming-files/test.json" "/var/raven/incoming-files/test.json"})
+            :entries {"test.json" "test.json"})
 
   (compress "test.zip"
-            :entries {"/var/raven/incoming-files/test.json" true})
+            :entries {"test.json" true})
 
   (compress "test.zip"
-            :entries ["/var/raven/incoming-files/test.json"])
+            :entries ["test.json"])
 
   ;; fully lazy mode, doesn't retain lazy seq
   (compress "z.zip"
@@ -97,12 +109,20 @@
                                (filter #(.isFile %))
                                (map #(.getPath %)))))
 
-  (extract "test.zip"
-           "test")
+  (extract "investigation.zip"
+           "investigation")
 
-  (->> "test.zip"
+  (->> "investigation.zip"
        (reduce-zip
          (fn [zip-input val entry]
            (conj val (.getName entry)))
          []))
+
+  (when (-> "investigation.zip"
+            (seek-entry
+              "/insert.edn"
+              (fn [zip-input entry]
+                (io/copy zip-input (io/file "insert.edn"))
+                true)))
+    (println "entry's found and unpacked"))
   )
