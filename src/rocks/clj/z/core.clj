@@ -10,6 +10,18 @@
      (flush)
      (.closeEntry zip#)))
 
+(defn- reduce-errors
+  "Default reduce function to handle errors."
+  [errors entry t]
+  (conj (or errors [])
+        {:entry   entry
+         :message (.getMessage t)}))
+
+(defn- reduce-success
+  "Default reduce function to handle success."
+  [success entry]
+  (inc (or success 0)))
+
 (defn compress
   "Writes a zip archive with entries to output.
   Output can be anything that is accepted by clojure.java.io/output-stream .
@@ -18,22 +30,32 @@
   Input can be anything that is accepted by clojure.java.io/input-stream or true (input value defaults to path).
   Alternaively you can provide entries-fn function which returns lazy collection.
   It allows to archive big amount of data without retaining any lazy seqs in memory during the process."
-  [output & {:keys [entries entries-fn]}]
+  [output & {:keys [entries entries-fn reduce-errors reduce-success]
+             :or   {reduce-errors  reduce-errors
+                    reduce-success reduce-success}}]
   (with-open [output (ZipOutputStream. (io/output-stream output))]
-    (doseq [entry (cond
-                    entries    entries
-                    entries-fn (entries-fn)
-                    :default   (throw (ex-info "Either :entries or :entries-fn should be specified" {})))]
-      (let [[path input] (cond
-                           (string? entry) [entry entry]
-                           (coll? entry)   entry
-                           :default        (throw (ex-info "Entry should be either [path input] or string" {})))
-            input        (if (= true input)
-                           path
-                           input)]
-        (with-new-entry output path
-          (-> (io/input-stream input)
-              (io/copy output)))))))
+    (->> (cond
+           entries    entries
+           entries-fn (entries-fn)
+           :default   (throw (ex-info "Either :entries or :entries-fn should be specified" {})))
+         (reduce
+           (fn [acc entry]
+             (let [[path input] (cond
+                                  (string? entry) [entry entry]
+                                  (coll? entry)   entry
+                                  :default        (throw (ex-info "Entry should be either [path input] or string" {})))
+                   input        (if (= true input)
+                                  path
+                                  input)]
+               (try
+                 (with-new-entry output path
+                   (-> (io/input-stream input)
+                       (io/copy output)))
+                 (update acc :success reduce-success entry)
+                 (catch Throwable t
+                   (update acc :errors reduce-errors entry t)))))
+           {:success nil
+            :errors  nil}))))
 
 (defn- zip-entries
   "Creates lazy seq of zip archive entries."
@@ -108,6 +130,11 @@
                                file-seq
                                (filter #(.isFile %))
                                (map #(.getPath %)))))
+
+  (compress "test.zip"
+            :entries ["test.json"
+                      "test.json"
+                      "z.zip"])
 
   (extract "investigation.zip"
            "investigation")
