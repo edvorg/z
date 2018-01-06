@@ -34,28 +34,27 @@
              :or   {reduce-errors  reduce-errors
                     reduce-success reduce-success}}]
   (with-open [output (ZipOutputStream. (io/output-stream output))]
-    (->> (cond
-           entries    entries
-           entries-fn (entries-fn)
-           :default   (throw (ex-info "Either :entries or :entries-fn should be specified" {})))
-         (reduce
-           (fn [acc entry]
-             (let [[path input] (cond
-                                  (string? entry) [entry entry]
-                                  (coll? entry)   entry
-                                  :default        (throw (ex-info "Entry should be either [path input] or string" {})))
-                   input        (if (= true input)
-                                  path
-                                  input)]
-               (try
-                 (with-new-entry output path
-                   (-> (io/input-stream input)
-                       (io/copy output)))
-                 (update acc :success reduce-success entry)
-                 (catch Throwable t
-                   (update acc :errors reduce-errors entry t)))))
-           {:success nil
-            :errors  nil}))))
+    (let [result (atom {:success nil
+                        :errors  nil})]
+      (doseq [entry (cond
+                      entries    entries
+                      entries-fn (entries-fn)
+                      :default   (throw (ex-info "Either :entries or :entries-fn should be specified" {})))]
+        (let [[path input] (cond
+                             (string? entry) [entry entry]
+                             (coll? entry)   entry
+                             :default        (throw (ex-info "Entry should be either [path input] or string" {})))
+              input        (if (= true input)
+                             path
+                             input)]
+          (try
+            (with-new-entry output path
+              (-> (io/input-stream input)
+                  (io/copy output)))
+            (swap! result update :success reduce-success entry)
+            (catch Throwable t
+              (swap! result update :errors reduce-errors entry t)))))
+      @result)))
 
 (defn- zip-entries
   "Creates lazy seq of zip archive entries."
