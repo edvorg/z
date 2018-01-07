@@ -10,42 +10,42 @@ A simple Clojure wrapper around java.util.zip
 (ns ...
   (:require [rocks.clj.z.core :refer [compress]]))
 
-(compress "test.zip"
-          :entries {"test.json" "test.json"})
+;; following three operations do the same thing
 
-(compress "test.zip"
-          :entries {"test.json" true})
+(compress "test.zip" :entries {"test.json" "test.json"})
 
-(compress "test.zip"
-          :entries ["test.json"])
+(compress "test.zip" :entries {"test.json" true}) ;; true means that input file should default to entry name
 
-;; fully lazy mode, doesn't retain lazy seq
-(compress "z.zip"
-          :entries-fn (fn []
-                        (->> (io/file "/Users/edvorg/Projects/z")
-                             file-seq
-                             (filter #(.isFile %))
-                             (map #(.getPath %)))))
+(compress "test.zip" :entries ["test.json"])
 
-;; extract test.zip into directory test
-(extract "test.zip"
-         "test")
+;; real world example of compressing a file/directory
+(->> (io/file "/Users/edvorg/Projects/z")
+     file-seq
+     (filter #(.isFile %))
+     (map #(.getPath %))
+     (compress "z.zip" :entries))
+
+(compress "test.zip" :entries ["test.json"
+                               "test.json" ;; repeated entries are dropped from compress process
+                               "z.zip"])
+
+;; extract archive into directory
+(extract "investigation.zip" "investigation")
 
 ;; perform a reduce operation on all entries
-(->> "test.zip"
+(->> "investigation.zip"
      (reduce-zip
        (fn [zip-input val entry]
          (conj val (.getName entry)))
        []))
 
 ;; find an entry and call a function on corresponding entry
-(when (-> "investigation.zip"
-          (seek-entry
-            "/insert.edn"
-            (fn [zip-input entry]
-              (io/copy zip-input (io/file "insert.edn"))
-              true)))
-  (println "entry's found and unpacked"))
+(-> "investigation.zip"
+    (seek-entry
+      "/insert.edn"
+      (fn [zip-input entry]
+        (io/copy zip-input (io/file "insert.edn"))
+        true))) ;; this value is returned from seek-entry
 ```
 
 ## License

@@ -36,32 +36,24 @@
   Output can be anything that is accepted by clojure.java.io/output-stream .
   Entries can be a collection of filenames or pairs [path -> input].
   Path is a path to entry inside archive.
-  Input can be anything that is accepted by clojure.java.io/input-stream or true (input value defaults to path).
-  Alternaively you can provide entries-fn function which returns lazy collection.
-  It allows to archive big amount of data without retaining any lazy seqs in memory during the process."
-  [output & {:keys [entries entries-fn reduce-errors reduce-success]
+  Input can be anything that is accepted by clojure.java.io/input-stream or true (input value defaults to path)."
+  [output & {:keys [reduce-errors reduce-success entries]
              :or   {reduce-errors  reduce-errors
                     reduce-success reduce-success}}]
   (with-open [output (ZipOutputStream. (io/output-stream output))]
-    (->> (cond
-           entries    entries
-           entries-fn (entries-fn)
-           :default   (throw (ex-info "Either :entries or :entries-fn should be specified" {})))
-         (reduce
-           (fn [acc entry]
-             (let [[path input] (conform-entry entry)
-                   input        (if (= true input)
-                                  path
-                                  input)]
-               (try
-                 (with-new-entry output path
-                   (-> (io/input-stream input)
-                       (io/copy output)))
-                 (update acc :success reduce-success entry)
-                 (catch Throwable t
-                   (update acc :errors reduce-errors entry t)))))
-           {:success nil
-            :errors  nil}))))
+    (reduce
+      (fn [acc entry]
+        (let [[path input] (conform-entry entry)]
+          (try
+            (with-new-entry output path
+              (-> (io/input-stream input)
+                  (io/copy output)))
+            (update acc :success reduce-success entry)
+            (catch Throwable t
+              (update acc :errors reduce-errors entry t)))))
+      {:success nil
+       :errors  nil}
+      entries)))
 
 (defn- zip-entries
   "Creates lazy seq of zip archive entries."
@@ -120,30 +112,23 @@
          nil)))
 
 (comment
-  (compress "test.zip"
-            :entries {"test.json" "test.json"})
+  (compress "test.zip" :entries {"test.json" "test.json"})
 
-  (compress "test.zip"
-            :entries {"test.json" true})
+  (compress "test.zip" :entries {"test.json" true})
 
-  (compress "test.zip"
-            :entries ["test.json"])
+  (compress "test.zip" :entries ["test.json"])
 
-  ;; fully lazy mode, doesn't retain lazy seq
-  (compress "z.zip"
-            :entries-fn (fn []
-                          (->> (io/file "/Users/edvorg/Projects/z")
-                               file-seq
-                               (filter #(.isFile %))
-                               (map #(.getPath %)))))
+  (->> (io/file "/Users/edvorg/Projects/z")
+       file-seq
+       (filter #(.isFile %))
+       (map #(.getPath %))
+       (compress "z.zip" :entries))
 
-  (compress "test.zip"
-            :entries ["test.json"
-                      "test.json"
-                      "z.zip"])
+  (compress "test.zip" :entries ["test.json"
+                                 "test.json"
+                                 "z.zip"])
 
-  (extract "investigation.zip"
-           "investigation")
+  (extract "investigation.zip" "investigation")
 
   (->> "investigation.zip"
        (reduce-zip
