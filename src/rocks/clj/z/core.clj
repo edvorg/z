@@ -22,6 +22,15 @@
   [success entry]
   (inc (or success 0)))
 
+(defn- conform-entry [entry]
+  (cond
+    (string? entry) [entry entry]
+    (coll? entry)   (let [[path input] entry]
+                      (if (= true input)
+                        [path path]
+                        entry))
+    :default        (throw (ex-info "Entry should be either [path input] or string" {}))))
+
 (defn compress
   "Writes a zip archive with entries to output.
   Output can be anything that is accepted by clojure.java.io/output-stream .
@@ -40,13 +49,7 @@
                       entries    entries
                       entries-fn (entries-fn)
                       :default   (throw (ex-info "Either :entries or :entries-fn should be specified" {})))]
-        (let [[path input] (cond
-                             (string? entry) [entry entry]
-                             (coll? entry)   entry
-                             :default        (throw (ex-info "Entry should be either [path input] or string" {})))
-              input        (if (= true input)
-                             path
-                             input)]
+        (let [[path input] (conform-entry entry)]
           (try
             (with-new-entry output path
               (-> (io/input-stream input)
@@ -144,11 +147,10 @@
            (conj val (.getName entry)))
          []))
 
-  (when (-> "investigation.zip"
-            (seek-entry
-              "/insert.edn"
-              (fn [zip-input entry]
-                (io/copy zip-input (io/file "insert.edn"))
-                true)))
-    (println "entry's found and unpacked"))
+  (-> "investigation.zip"
+      (seek-entry
+        "/insert.edn"
+        (fn [zip-input entry]
+          (io/copy zip-input (io/file "insert.edn"))
+          true)))
   )
