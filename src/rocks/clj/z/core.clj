@@ -63,7 +63,7 @@
   "Creates lazy seq of zip archive entries."
   [^ZipInputStream zip-input]
   (lazy-seq
-    (if-let [entry (.getNextEntry zip-input)]
+    (when-let [entry (.getNextEntry zip-input)]
       (cons entry (zip-entries zip-input)))))
 
 (defn do-zip
