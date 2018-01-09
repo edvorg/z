@@ -1,4 +1,4 @@
-(defproject rocks.clj/z "0.1.0-SNAPSHOT"
+(defproject rocks.clj/z "0.1.0"
   :description "Simple Clojure wrapper around java.util.zip"
   :url "https://github.com/edvorg/z"
   :license {:name "Eclipse Public License"
