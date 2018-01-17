@@ -50,7 +50,7 @@ A simple Clojure wrapper around java.util.zip
 
 ## License
 
-Copyright © 2017 Eduard Knyshov
+Copyright © 2017-2018 Eduard Knyshov
 
 Distributed under the Eclipse Public License either version 1.0 or (at
 your option) any later version.
